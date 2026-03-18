@@ -10,10 +10,6 @@ import os
 app = Flask(__name__)
 CORS(app)
 
-@app.route("/")
-def home():
-    return "Heart Disease Prediction API is running 🚀"
-
 app.config["JWT_SECRET_KEY"] = "secret123"
 
 jwt = JWTManager(app)
@@ -29,11 +25,15 @@ history = db["history"]
 model = None
 scaler = None
 
+# ===================== HOME =====================
+@app.route("/")
+def home():
+    return "Heart Disease Prediction API is running 🚀"
+
 # ===================== LAZY LOAD =====================
 def load_resources():
     global model, scaler
 
-    # Load scaler once
     if scaler is None:
         try:
             print("Loading scaler...")
@@ -42,7 +42,6 @@ def load_resources():
         except Exception as e:
             print("Scaler error:", e)
 
-    # Load model only when needed
     if model is None:
         try:
             from tensorflow.keras.models import load_model
@@ -50,9 +49,8 @@ def load_resources():
             model = load_model("heart_model.h5", compile=False)
             print("Model loaded")
         except Exception as e:
-            print("Model failed:", e)
+            print("Model error:", e)
             model = None
-
 
 # ===================== REGISTER =====================
 @app.route("/register", methods=["POST"])
@@ -67,7 +65,6 @@ def register():
 
     return jsonify({"msg": "Registered"})
 
-
 # ===================== LOGIN =====================
 @app.route("/login", methods=["POST"])
 def login():
@@ -80,7 +77,6 @@ def login():
 
     return jsonify({"msg": "Invalid credentials"}), 401
 
-
 # ===================== PREDICT =====================
 @app.route("/predict", methods=["POST"])
 @jwt_required()
@@ -91,12 +87,8 @@ def predict():
     user = get_jwt_identity()
 
     try:
-        print("Incoming:", data)
-
-        # Load resources
         load_resources()
 
-        # Safe defaults
         if not data:
             return jsonify({"error": "No data received"}), 400
 
@@ -106,7 +98,7 @@ def predict():
         # Age conversion
         age_days = float(data.get('age', 0)) * 365
 
-        # Features safely
+        # Features
         features = np.array([[
             age_days,
             float(data.get('height', 0)),
@@ -122,31 +114,37 @@ def predict():
             bmi
         ]])
 
-        # Apply scaler if exists
+        # Scale
         if scaler:
             features = scaler.transform(features)
 
-        # Predict safely
+        # Prediction
         if model:
             prediction = float(model.predict(features)[0][0])
         else:
             prediction = float(np.mean(features))  # fallback
 
+        # Clamp (0–1)
+        prediction = max(0, min(prediction, 1))
+
+        # Convert to %
+        risk_percent = round(prediction * 100, 2)
+
         result = "High Risk" if prediction > 0.5 else "Low Risk"
 
-        # Save history (safe)
+        # Save history
         try:
             history.insert_one({
                 "user": user,
                 "result": result,
-                "risk": prediction
+                "risk": risk_percent
             })
         except Exception as db_error:
             print("DB error:", db_error)
 
         return jsonify({
             "result": result,
-            "risk": prediction
+            "risk": risk_percent
         })
 
     except Exception as e:
@@ -161,12 +159,9 @@ def get_history():
     data = list(history.find({"user": user}, {"_id": 0}))
     return jsonify(data)
 
-
 # ===================== RUN =====================
 if __name__ == "__main__":
     print("Starting Flask app...")
-
     port = int(os.environ.get("PORT", 5000))
     print(f"Running on port {port}")
-
     app.run(host="0.0.0.0", port=port)
