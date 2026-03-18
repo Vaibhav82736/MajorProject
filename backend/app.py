@@ -91,37 +91,42 @@ def predict():
     user = get_jwt_identity()
 
     try:
-        # 🔥 Load resources here (lazy loading)
+        print("Incoming:", data)
+
+        # Load resources
         load_resources()
 
-        if scaler is None:
-            return jsonify({"error": "Scaler not loaded"}), 500
+        # Safe defaults
+        if not data:
+            return jsonify({"error": "No data received"}), 400
 
         # BMI
-        bmi = data['weight'] / ((data['height'] / 100) ** 2)
+        bmi = float(data.get('weight', 0)) / ((float(data.get('height', 1)) / 100) ** 2)
 
         # Age conversion
-        age_days = data['age'] * 365
+        age_days = float(data.get('age', 0)) * 365
 
-        # Features
+        # Features safely
         features = np.array([[
             age_days,
-            data['height'],
-            data['weight'],
-            data['gender'],
-            data['ap_hi'],
-            data['ap_lo'],
-            data['cholesterol'],
-            data['gluc'],
-            data['smoke'],
-            data['alco'],
-            data['active'],
+            float(data.get('height', 0)),
+            float(data.get('weight', 0)),
+            int(data.get('gender', 0)),
+            float(data.get('ap_hi', 0)),
+            float(data.get('ap_lo', 0)),
+            int(data.get('cholesterol', 1)),
+            int(data.get('gluc', 1)),
+            int(data.get('smoke', 0)),
+            int(data.get('alco', 0)),
+            int(data.get('active', 0)),
             bmi
         ]])
 
-        features = scaler.transform(features)
+        # Apply scaler if exists
+        if scaler:
+            features = scaler.transform(features)
 
-        # Prediction
+        # Predict safely
         if model:
             prediction = float(model.predict(features)[0][0])
         else:
@@ -129,12 +134,15 @@ def predict():
 
         result = "High Risk" if prediction > 0.5 else "Low Risk"
 
-        # Save history
-        history.insert_one({
-            "user": user,
-            "result": result,
-            "risk": prediction
-        })
+        # Save history (safe)
+        try:
+            history.insert_one({
+                "user": user,
+                "result": result,
+                "risk": prediction
+            })
+        except Exception as db_error:
+            print("DB error:", db_error)
 
         return jsonify({
             "result": result,
@@ -142,8 +150,8 @@ def predict():
         })
 
     except Exception as e:
+        print("ERROR:", str(e))
         return jsonify({"error": str(e)}), 500
-
 
 # ===================== HISTORY =====================
 @app.route("/history", methods=["GET"])
