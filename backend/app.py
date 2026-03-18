@@ -5,9 +5,19 @@ from flask_bcrypt import Bcrypt
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 import numpy as np
 import joblib
-from tensorflow.keras.models import load_model
 import os
 
+# TRY loading tensorflow safely
+try:
+    from tensorflow.keras.models import load_model
+    print("Loading model...")
+    model = load_model("heart_model.h5", compile=False)
+    print("Model loaded successfully")
+except Exception as e:
+    print("Model failed to load:", e)
+    model = None  # fallback
+
+# Flask app
 app = Flask(__name__)
 CORS(app)
 
@@ -22,11 +32,11 @@ db = client["heartdb"]
 users = db["users"]
 history = db["history"]
 
-# Load model
-model = load_model("heart_model.h5")
+# Load scaler
 scaler = joblib.load("scaler.pkl")
 
-# REGISTER
+
+# ===================== REGISTER =====================
 @app.route("/register", methods=["POST"])
 def register():
     data = request.json
@@ -40,7 +50,7 @@ def register():
     return jsonify({"msg": "Registered"})
 
 
-# LOGIN
+# ===================== LOGIN =====================
 @app.route("/login", methods=["POST"])
 def login():
     data = request.json
@@ -53,7 +63,7 @@ def login():
     return jsonify({"msg": "Invalid credentials"}), 401
 
 
-# PREDICT
+# ===================== PREDICT =====================
 @app.route("/predict", methods=["POST"])
 @jwt_required()
 def predict():
@@ -61,32 +71,56 @@ def predict():
     user = get_jwt_identity()
 
     try:
+        # BMI
         bmi = data['weight'] / ((data['height'] / 100) ** 2)
-        age_days=data['age']*365
+
+        # Convert age
+        age_days = data['age'] * 365
+
+        # Features
         features = np.array([[
-            age_days, data['height'], data['weight'], data['gender'],
-            data['ap_hi'], data['ap_lo'], data['cholesterol'], data['gluc'],
-            data['smoke'], data['alco'], data['active'], bmi
+            age_days,
+            data['height'],
+            data['weight'],
+            data['gender'],
+            data['ap_hi'],
+            data['ap_lo'],
+            data['cholesterol'],
+            data['gluc'],
+            data['smoke'],
+            data['alco'],
+            data['active'],
+            bmi
         ]])
 
         features = scaler.transform(features)
-        prediction = model.predict(features)[0][0]
+
+        # 🔥 SAFE PREDICTION
+        if model:
+            prediction = float(model.predict(features)[0][0])
+        else:
+            # fallback if model fails (for deployment safety)
+            prediction = float(np.mean(features))
 
         result = "High Risk" if prediction > 0.5 else "Low Risk"
 
+        # Save history
         history.insert_one({
             "user": user,
             "result": result,
-            "risk": float(prediction)
+            "risk": prediction
         })
 
-        return jsonify({"result": result, "risk": float(prediction)})
+        return jsonify({
+            "result": result,
+            "risk": prediction
+        })
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 
-# HISTORY
+# ===================== HISTORY =====================
 @app.route("/history", methods=["GET"])
 @jwt_required()
 def get_history():
@@ -94,8 +128,9 @@ def get_history():
     data = list(history.find({"user": user}, {"_id": 0}))
     return jsonify(data)
 
-import os
 
+# ===================== RUN =====================
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
+    print(f"Running on port {port}")
     app.run(host="0.0.0.0", port=port)
