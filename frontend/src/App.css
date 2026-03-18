@@ -1,0 +1,113 @@
+body {
+  margin: 0;
+  font-family: 'Segoe UI', sans-serif;
+}
+
+/* LANDING PAGE */
+.landing {
+  height: 100vh;
+  background: url("https://images.unsplash.com/photo-1588776814546-ec7e1c1c4d1c") no-repeat center/cover;
+}
+
+.overlay {
+  background: rgba(0,0,0,0.6);
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.login-card {
+  background: white;
+  padding: 30px;
+  border-radius: 12px;
+  text-align: center;
+  width: 300px;
+}
+
+.login-card input {
+  width: 100%;
+  padding: 10px;
+  margin: 10px 0;
+}
+
+.login-card button {
+  width: 100%;
+  padding: 10px;
+  background: #2563eb;
+  color: white;
+  border: none;
+}
+
+/* DASHBOARD */
+.container {
+  padding: 20px;
+  max-width: 1000px;
+  margin: auto;
+  background: #f1f5f9;
+  min-height: 100vh;
+}
+
+.card {
+  background: white;
+  padding: 20px;
+  margin-top: 20px;
+  border-radius: 10px;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2,1fr);
+  gap: 12px;
+}
+
+input, select {
+  padding: 10px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+}
+
+.primary-btn {
+  margin-top: 15px;
+  padding: 12px;
+  width: 100%;
+  background: #2563eb;
+  color: white;
+  border: none;
+}
+
+.result {
+  text-align: center;
+}
+
+.history-grid {
+  display: grid;
+  grid-template-columns: repeat(3,1fr);
+  gap: 10px;
+}
+
+.history-card {
+  background: #e2e8f0;
+  padding: 10px;
+  border-radius: 8px;
+  text-align: center;
+}
+
+/* ANIMATION */
+.fade-in {
+  animation: fadeIn 1s ease-in;
+}
+
+@keyframes fadeIn {
+  from {opacity: 0; transform: translateY(20px);}
+  to {opacity: 1;}
+}
+
+.logout {
+  margin-top: 20px;
+  width: 100%;
+  padding: 10px;
+  background: red;
+  color: white;
+  border: none;
+}
