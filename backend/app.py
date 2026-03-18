@@ -7,17 +7,6 @@ import numpy as np
 import joblib
 import os
 
-# TRY loading tensorflow safely
-try:
-    from tensorflow.keras.models import load_model
-    print("Loading model...")
-    model = load_model("heart_model.h5", compile=False)
-    print("Model loaded successfully")
-except Exception as e:
-    print("Model failed to load:", e)
-    model = None  # fallback
-
-# Flask app
 app = Flask(__name__)
 CORS(app)
 
@@ -26,14 +15,32 @@ app.config["JWT_SECRET_KEY"] = "secret123"
 jwt = JWTManager(app)
 bcrypt = Bcrypt(app)
 
-# MongoDB
+# ===================== MongoDB =====================
 client = MongoClient(os.environ.get("MONGO_URI"), tlsAllowInvalidCertificates=True)
 db = client["heartdb"]
 users = db["users"]
 history = db["history"]
 
-# Load scaler
-scaler = joblib.load("scaler.pkl")
+# ===================== GLOBAL VARIABLES =====================
+model = None
+scaler = None
+
+# ===================== LOAD RESOURCES SAFELY =====================
+def load_resources():
+    global model, scaler
+
+    try:
+        print("Loading scaler...")
+        scaler = joblib.load("scaler.pkl")
+        print("Scaler loaded")
+
+        from tensorflow.keras.models import load_model
+        print("Loading model...")
+        model = load_model("heart_model.h5", compile=False)
+        print("Model loaded")
+
+    except Exception as e:
+        print("Error loading resources:", e)
 
 
 # ===================== REGISTER =====================
@@ -67,17 +74,23 @@ def login():
 @app.route("/predict", methods=["POST"])
 @jwt_required()
 def predict():
+    global model, scaler
+
     data = request.json
     user = get_jwt_identity()
 
     try:
-        # BMI
+        # Ensure scaler loaded
+        if scaler is None:
+            return jsonify({"error": "Scaler not loaded"}), 500
+
+        # BMI calculation
         bmi = data['weight'] / ((data['height'] / 100) ** 2)
 
-        # Convert age
+        # Age conversion
         age_days = data['age'] * 365
 
-        # Features
+        # Feature array
         features = np.array([[
             age_days,
             data['height'],
@@ -95,12 +108,11 @@ def predict():
 
         features = scaler.transform(features)
 
-        # 🔥 SAFE PREDICTION
+        # Safe prediction
         if model:
             prediction = float(model.predict(features)[0][0])
         else:
-            # fallback if model fails (for deployment safety)
-            prediction = float(np.mean(features))
+            prediction = float(np.mean(features))  # fallback
 
         result = "High Risk" if prediction > 0.5 else "Low Risk"
 
@@ -131,6 +143,11 @@ def get_history():
 
 # ===================== RUN =====================
 if __name__ == "__main__":
+    print("Starting Flask app...")
+
+    load_resources()  # load model AFTER app starts
+
     port = int(os.environ.get("PORT", 5000))
     print(f"Running on port {port}")
+
     app.run(host="0.0.0.0", port=port)
