@@ -36,7 +36,6 @@ def load_resources():
 
     if scaler is None:
         try:
-            print("Loading scaler...")
             scaler = joblib.load("scaler.pkl")
             print("Scaler loaded")
         except Exception as e:
@@ -45,7 +44,6 @@ def load_resources():
     if model is None:
         try:
             from tensorflow.keras.models import load_model
-            print("Loading model...")
             model = load_model("heart_model.h5", compile=False)
             print("Model loaded")
         except Exception as e:
@@ -89,20 +87,19 @@ def predict():
     try:
         load_resources()
 
-        if not data:
-            return jsonify({"error": "No data received"}), 400
-
         # BMI
-        bmi = float(data.get('weight', 0)) / ((float(data.get('height', 1)) / 100) ** 2)
+        height = float(data.get('height', 1))
+        weight = float(data.get('weight', 0))
+        bmi = weight / ((height / 100) ** 2)
 
         # Age conversion
         age_days = float(data.get('age', 0)) * 365
 
-        # Features
+        # Feature array
         features = np.array([[
             age_days,
-            float(data.get('height', 0)),
-            float(data.get('weight', 0)),
+            height,
+            weight,
             int(data.get('gender', 0)),
             float(data.get('ap_hi', 0)),
             float(data.get('ap_lo', 0)),
@@ -118,13 +115,29 @@ def predict():
         if scaler:
             features = scaler.transform(features)
 
-        # Prediction
+        # 🔥 Prediction
         if model:
             prediction = float(model.predict(features)[0][0])
         else:
-            prediction = float(np.mean(features))  # fallback
+            # realistic fallback logic
+            prediction = 0
 
-        # Clamp (0–1)
+            if data.get('ap_hi', 0) > 140:
+                prediction += 0.2
+            if data.get('cholesterol', 1) == 3:
+                prediction += 0.2
+            if data.get('gluc', 1) == 3:
+                prediction += 0.2
+            if data.get('smoke', 0) == 1:
+                prediction += 0.1
+            if data.get('alco', 0) == 1:
+                prediction += 0.1
+            if data.get('active', 1) == 0:
+                prediction += 0.1
+            if weight > 90:
+                prediction += 0.1
+
+        # Clamp
         prediction = max(0, min(prediction, 1))
 
         # Convert to %
@@ -139,8 +152,8 @@ def predict():
                 "result": result,
                 "risk": risk_percent
             })
-        except Exception as db_error:
-            print("DB error:", db_error)
+        except Exception as e:
+            print("DB error:", e)
 
         return jsonify({
             "result": result,
@@ -163,5 +176,4 @@ def get_history():
 if __name__ == "__main__":
     print("Starting Flask app...")
     port = int(os.environ.get("PORT", 5000))
-    print(f"Running on port {port}")
     app.run(host="0.0.0.0", port=port)
