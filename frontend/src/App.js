@@ -1,7 +1,7 @@
 import { useState } from "react";
 import "./App.css";
 
-const API = "http://127.0.0.1:5000";
+const API = "https://majorproject-pt8s.onrender.com";
 
 function App() {
   const [token, setToken] = useState(localStorage.getItem("token"));
