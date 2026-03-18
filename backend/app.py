@@ -21,26 +21,33 @@ db = client["heartdb"]
 users = db["users"]
 history = db["history"]
 
-# ===================== GLOBAL VARIABLES =====================
+# ===================== GLOBAL =====================
 model = None
 scaler = None
 
-# ===================== LOAD RESOURCES SAFELY =====================
+# ===================== LAZY LOAD =====================
 def load_resources():
     global model, scaler
 
-    try:
-        print("Loading scaler...")
-        scaler = joblib.load("scaler.pkl")
-        print("Scaler loaded")
+    # Load scaler once
+    if scaler is None:
+        try:
+            print("Loading scaler...")
+            scaler = joblib.load("scaler.pkl")
+            print("Scaler loaded")
+        except Exception as e:
+            print("Scaler error:", e)
 
-        from tensorflow.keras.models import load_model
-        print("Loading model...")
-        model = load_model("heart_model.h5", compile=False)
-        print("Model loaded")
-
-    except Exception as e:
-        print("Error loading resources:", e)
+    # Load model only when needed
+    if model is None:
+        try:
+            from tensorflow.keras.models import load_model
+            print("Loading model...")
+            model = load_model("heart_model.h5", compile=False)
+            print("Model loaded")
+        except Exception as e:
+            print("Model failed:", e)
+            model = None
 
 
 # ===================== REGISTER =====================
@@ -80,17 +87,19 @@ def predict():
     user = get_jwt_identity()
 
     try:
-        # Ensure scaler loaded
+        # 🔥 Load resources here (lazy loading)
+        load_resources()
+
         if scaler is None:
             return jsonify({"error": "Scaler not loaded"}), 500
 
-        # BMI calculation
+        # BMI
         bmi = data['weight'] / ((data['height'] / 100) ** 2)
 
         # Age conversion
         age_days = data['age'] * 365
 
-        # Feature array
+        # Features
         features = np.array([[
             age_days,
             data['height'],
@@ -108,7 +117,7 @@ def predict():
 
         features = scaler.transform(features)
 
-        # Safe prediction
+        # Prediction
         if model:
             prediction = float(model.predict(features)[0][0])
         else:
@@ -144,8 +153,6 @@ def get_history():
 # ===================== RUN =====================
 if __name__ == "__main__":
     print("Starting Flask app...")
-
-    load_resources()  # load model AFTER app starts
 
     port = int(os.environ.get("PORT", 5000))
     print(f"Running on port {port}")
