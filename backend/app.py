@@ -10,6 +10,10 @@ import os
 app = Flask(__name__)
 CORS(app)
 
+@app.route("/")
+def home():
+    return "Heart Disease Prediction API is running 🚀"
+
 app.config["JWT_SECRET_KEY"] = "secret123"
 
 jwt = JWTManager(app)
