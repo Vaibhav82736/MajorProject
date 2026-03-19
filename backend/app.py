@@ -30,24 +30,25 @@ scaler = None
 def home():
     return "Heart Disease Prediction API is running 🚀"
 
-# ===================== LAZY LOAD =====================
+# ===================== LOAD MODEL & SCALER =====================
 def load_resources():
     global model, scaler
 
     if scaler is None:
         try:
             scaler = joblib.load("scaler.pkl")
-            print("Scaler loaded")
+            print("✅ Scaler loaded")
         except Exception as e:
-            print("Scaler error:", e)
+            print("❌ Scaler error:", e)
+            scaler = None
 
     if model is None:
         try:
             from tensorflow.keras.models import load_model
             model = load_model("heart_model.h5", compile=False)
-            print("Model loaded")
+            print("✅ Model loaded")
         except Exception as e:
-            print("Model error:", e)
+            print("❌ Model error:", e)
             model = None
 
 # ===================== REGISTER =====================
@@ -87,15 +88,18 @@ def predict():
     try:
         load_resources()
 
-        # BMI
+        # ----------- INPUT SAFE PARSE -----------
         height = float(data.get('height', 1))
         weight = float(data.get('weight', 0))
+        age = float(data.get('age', 0))
+
+        # BMI
         bmi = weight / ((height / 100) ** 2)
 
-        # Age conversion
-        age_days = float(data.get('age', 0)) * 365
+        # Convert age to days
+        age_days = age * 365
 
-        # Feature array
+        # ----------- FEATURES -----------
         features = np.array([[
             age_days,
             height,
@@ -115,11 +119,18 @@ def predict():
         if scaler:
             features = scaler.transform(features)
 
-        # 🔥 Prediction
+        # ----------- PREDICTION FIX -----------
         if model:
-            prediction = float(model.predict(features)[0][0])
+            raw_pred = float(model.predict(features)[0][0])
+
+            # 🔥 FORCE NORMALIZATION (KEY FIX)
+            prediction = 1 / (1 + np.exp(-raw_pred))
+
+            print("RAW:", raw_pred)
+            print("SIGMOID:", prediction)
+
         else:
-            # realistic fallback logic
+            # ----------- FALLBACK LOGIC -----------
             prediction = 0
 
             if data.get('ap_hi', 0) > 140:
@@ -137,7 +148,7 @@ def predict():
             if weight > 90:
                 prediction += 0.1
 
-        # Clamp
+        # ----------- SAFETY CLAMP -----------
         prediction = max(0, min(prediction, 1))
 
         # Convert to %
@@ -145,7 +156,7 @@ def predict():
 
         result = "High Risk" if prediction > 0.5 else "Low Risk"
 
-        # Save history
+        # ----------- SAVE HISTORY -----------
         try:
             history.insert_one({
                 "user": user,
@@ -161,7 +172,7 @@ def predict():
         })
 
     except Exception as e:
-        print("ERROR:", str(e))
+        print("❌ ERROR:", str(e))
         return jsonify({"error": str(e)}), 500
 
 # ===================== HISTORY =====================
@@ -174,6 +185,6 @@ def get_history():
 
 # ===================== RUN =====================
 if __name__ == "__main__":
-    print("Starting Flask app...")
+    print("🚀 Starting Flask app...")
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
