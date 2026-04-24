@@ -155,7 +155,7 @@ function App() {
       {result && (
         <div className="card result">
           <h2>{result.result}</h2>
-          <p>Risk: {(result.risk * 100).toFixed(2)}%</p>
+          <p>Risk: {result.risk}%</p>
         </div>
       )}
 
@@ -168,7 +168,7 @@ function App() {
           {history.map((h,i)=>(
             <div key={i} className="history-card">
               {h.result}
-              <span>{(h.risk*100).toFixed(2)}%</span>
+              <span>{h.risk}%</span>
             </div>
           ))}
         </div>
