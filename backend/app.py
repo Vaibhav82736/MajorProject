@@ -17,7 +17,7 @@ bcrypt = Bcrypt(app)
 
 # ===================== MongoDB =====================
 client = MongoClient(os.environ.get("MONGO_URI"), tlsAllowInvalidCertificates=True)
-db = client["heartdb"]
+db = client["heartprojectdb"]
 users = db["users"]
 history = db["history"]
 
